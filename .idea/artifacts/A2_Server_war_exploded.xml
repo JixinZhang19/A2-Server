@@ -1,0 +1,17 @@
+<component name="ArtifactManager">
+  <artifact type="exploded-war" name="A2-Server:war exploded">
+    <output-path>$PROJECT_DIR$/out/artifacts/A2_Server_war_exploded</output-path>
+    <root id="root">
+      <element id="javaee-facet-resources" facet="A2-Server/web/Web" />
+      <element id="directory" name="WEB-INF">
+        <element id="directory" name="classes">
+          <element id="module-output" name="A2-Server" />
+        </element>
+        <element id="directory" name="lib">
+          <element id="library" level="project" name="Maven: com.google.code.gson:gson:2.10.1" />
+        </element>
+      </element>
+      <element id="dir-copy" path="/Library/Tomcat/apache-tomcat-9.0.89/webapps" />
+    </root>
+  </artifact>
+</component>
