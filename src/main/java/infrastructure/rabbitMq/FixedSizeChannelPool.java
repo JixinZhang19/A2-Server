@@ -18,6 +18,7 @@ public class FixedSizeChannelPool implements AutoCloseable {
     private final int poolSize;
 
     public FixedSizeChannelPool(Connection connection, int poolSize) throws IOException {
+        System.out.println("FixedSizeChannelPool init");
         this.pool = new ConcurrentLinkedQueue<>();
         this.connection = connection;
         this.poolSize = poolSize;
@@ -48,12 +49,12 @@ public class FixedSizeChannelPool implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        Channel channel;
-        while ((channel = pool.poll()) != null) {
-            if (channel.isOpen()) {
+        for (Channel channel : pool) {
+            if (channel != null && channel.isOpen()) {
                 channel.close();
             }
         }
     }
 
 }
+

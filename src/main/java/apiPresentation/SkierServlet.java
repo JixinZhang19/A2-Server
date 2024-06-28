@@ -1,7 +1,4 @@
-package apiPresentation; /**
- * @author Rebecca Zhang
- * Created on 2024-06-01
- */
+package apiPresentation;
 
 import apiPresentation.dto.in.SkierInDto;
 import apiPresentation.dto.out.SkierOutDto;
@@ -12,7 +9,6 @@ import domain.MqRepository;
 import infrastructure.rabbitMq.MqRepositoryFactory;
 
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -20,10 +16,14 @@ import java.io.IOException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * @author Rebecca Zhang
+ * Created on 2024-06-25
+ */
+
 // Servlet 是单例
 // Laze: Servlet 的实例创建和 init() 方法的调用推迟到第一次请求到达时
 // Eager: Web 容器部署时立即初始化，这发生在任何请求到达之前
-@WebServlet(name = "api.SkierServlet", urlPatterns = {"/skiers/*"}, loadOnStartup = 1)
 public class SkierServlet extends HttpServlet {
 
     private static final Gson gson = new Gson();
@@ -34,12 +34,13 @@ public class SkierServlet extends HttpServlet {
     // ServletException 由 Web 容器处理
     @Override
     public void init() throws ServletException {
+        System.out.println("init");
         super.init();
         // 使用工厂类创建 MqRepository 实现类的实例 -> decouple, 避免 controller 直接依赖 infrastructure
         try {
             this.mqRepository = MqRepositoryFactory.createMqRepository();
         } catch (Exception e) {
-            String errorMessage = "Failed to initialize MqRepository";
+            String errorMessage = "Error: failed to initialize MqRepository!";
             System.out.println(errorMessage);
             throw new ServletException(errorMessage, e);
         }
@@ -47,11 +48,12 @@ public class SkierServlet extends HttpServlet {
 
     @Override
     public void destroy() {
+        System.out.println("destroy");
         try {
             mqRepository.close();
         } catch (Exception e) {
-            // todo: init 和 destroy 的异常如何处理？
-            System.out.println("Error closing resources");
+            String errorMessage = "Error: failed to close resources!";
+            System.out.println(errorMessage);
         }
         super.destroy();
     }
@@ -76,14 +78,14 @@ public class SkierServlet extends HttpServlet {
             res.getWriter().write(gson.toJson(skierOutDto));
             return;
         }
-        // 3. Send LifeRide as a msg to MQ
+        // 3. Send LifeRide as a message to MQ
         try {
             LifeRide lifeRide = toLifeRide(urlPath, requestBody);
             String message = gson.toJson(lifeRide);
             mqRepository.sendMessageToMQ(message);
         } catch (Exception e) {
             res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            SkierOutDto skierOutDto = new SkierOutDto("Internal error: send msg to MQ");
+            SkierOutDto skierOutDto = new SkierOutDto("Internal error: failed to send message to MQ");
             res.getWriter().write(gson.toJson(skierOutDto));
             return;
         }
@@ -140,7 +142,7 @@ public class SkierServlet extends HttpServlet {
     /**
      * @param urlPath
      * @param requestBody
-     * @return LifeRide Object
+     * @return LifeRide
      * @Description format the incoming data (URL and JSON payload) as LifeRide Object
      */
     private LifeRide toLifeRide(String urlPath, String requestBody) {
