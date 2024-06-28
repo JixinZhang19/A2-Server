@@ -22,20 +22,21 @@ public class MqRepoImpl implements MqRepository {
     private static final String HOST = "localhost";
     private final Connection connection;
     private final FixedSizeChannelPool channelPool;
-    // private final AtomicInteger messageCounter;
-    private static final AtomicInteger THREAD_COUNTER = new AtomicInteger(0);
+    private final AtomicInteger messageCounter;
 
-    private static final ThreadLocal<Integer> threadLocalCounter = ThreadLocal.withInitial(() -> {
-        // 为每个线程分配一个唯一的起始索引
-        return THREAD_COUNTER.getAndIncrement() % QUEUE_COUNT;
-    });
+//    private static final AtomicInteger THREAD_COUNTER = new AtomicInteger(0);
+//
+//    private static final ThreadLocal<Integer> threadLocalCounter = ThreadLocal.withInitial(() -> {
+//        // 为每个线程分配一个唯一的起始索引
+//        return THREAD_COUNTER.getAndIncrement() % QUEUE_COUNT;
+//    });
 
     public MqRepoImpl() throws Exception {
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(HOST);
         this.connection = factory.newConnection();
         this.channelPool = new FixedSizeChannelPool(connection, CHANNEL_COUNT);
-        // this.messageCounter = new AtomicInteger(0);
+        this.messageCounter = new AtomicInteger(0);
 
         initializeExchangeAndQueues();
     }
@@ -60,11 +61,11 @@ public class MqRepoImpl implements MqRepository {
         try {
             channel = channelPool.borrowChannel();
             // todo: 发送消息的策略
-            // 轮训到 queue 的策略
-            // int queueIndex = messageCounter.getAndIncrement() % QUEUE_COUNT;
+            // 轮训的策略
+            int queueIndex = messageCounter.getAndIncrement() % QUEUE_COUNT;
             // ThreadLocal 计数器
-            int queueIndex = threadLocalCounter.get();
-            threadLocalCounter.set((queueIndex + 1) % QUEUE_COUNT);
+//            int queueIndex = threadLocalCounter.get();
+//            threadLocalCounter.set((queueIndex + 1) % QUEUE_COUNT);
             String routingKey = "queue_" + queueIndex;
             channel.basicPublish(EXCHANGE_NAME, routingKey, null, message.getBytes(StandardCharsets.UTF_8));
             // todo: 需要发送成功确认后再返回吗 channel.confirmSelect(); channel.waitForConfirmsOrDie(5_000); -> 影响吞吐量
