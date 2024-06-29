@@ -40,8 +40,8 @@ public class SkierServlet extends HttpServlet {
         try {
             this.mqRepository = MqRepositoryFactory.createMqRepository();
         } catch (Exception e) {
-            String errorMessage = "Error: failed to initialize MqRepository!";
-            System.out.println(errorMessage);
+            String errorMessage = "Error: failed to initialize resources!";
+            System.err.println(errorMessage);
             throw new ServletException(errorMessage, e);
         }
     }
@@ -53,7 +53,7 @@ public class SkierServlet extends HttpServlet {
             mqRepository.close();
         } catch (Exception e) {
             String errorMessage = "Error: failed to close resources!";
-            System.out.println(errorMessage);
+            System.err.println(errorMessage);
         }
         super.destroy();
     }
@@ -148,7 +148,14 @@ public class SkierServlet extends HttpServlet {
     private LifeRide toLifeRide(String urlPath, String requestBody) {
         String[] urlParts = urlPath.split("/");
         SkierInDto skierInDto = gson.fromJson(requestBody, SkierInDto.class);
-        return new LifeRide(Integer.parseInt(urlParts[1]), urlParts[3], urlParts[5], Integer.parseInt(urlParts[7]), skierInDto.getTime(), skierInDto.getLiftID());
+        return new LifeRide(
+                Integer.parseInt(urlParts[1]),
+                urlParts[3],
+                urlParts[5],
+                Integer.parseInt(urlParts[7]),
+                skierInDto.getTime(),
+                skierInDto.getLiftID()
+        );
     }
 
 }
