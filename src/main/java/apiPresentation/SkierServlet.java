@@ -21,9 +21,11 @@ import java.util.stream.Collectors;
  * Created on 2024-06-25
  */
 
-// Servlet 是单例
-// Laze: Servlet 的实例创建和 init() 方法的调用推迟到第一次请求到达时
-// Eager: Web 容器部署时立即初始化，这发生在任何请求到达之前
+/**
+ * Singleton Servlet
+ * Laze initialization: Servlet instance creation and init() method invocation is delayed until the first request arrives
+ * Eager initialization (load-on-startup=1): The Web container is initialized immediately upon deployment, which occurs before any request arrives
+ */
 public class SkierServlet extends HttpServlet {
 
     private static final Gson gson = new Gson();
@@ -31,12 +33,14 @@ public class SkierServlet extends HttpServlet {
     private MqRepository mqRepository;
 
 
-    // ServletException 由 Web 容器处理
+    /**
+     * @throws ServletException ServletException is handled by the Web container
+     * Employ factory to create instance of MqRepository's implementation class -> decouple and avoid direct dependency on infrastructure
+     */
     @Override
     public void init() throws ServletException {
         System.out.println("init");
         super.init();
-        // 使用工厂类创建 MqRepository 实现类的实例 -> decouple, 避免 controller 直接依赖 infrastructure
         try {
             this.mqRepository = MqRepositoryFactory.createMqRepository();
         } catch (Exception e) {

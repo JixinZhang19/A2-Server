@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class FixedSizeChannelPool implements AutoCloseable {
 
-    // CAS（Compare-And-Swap）机制实现的，无需显式的锁
+    // ConcurrentLinkedQueue is implemented by CAS（Compare-And-Swap), without explicit locks
     private final ConcurrentLinkedQueue<Channel> pool;
     private final Connection connection;
     private final int poolSize;

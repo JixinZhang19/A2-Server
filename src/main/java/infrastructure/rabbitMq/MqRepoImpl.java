@@ -15,24 +15,16 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class MqRepoImpl implements MqRepository {
 
-    // todo: tuning CHANNEL_COUNT and QUEUE_COUNT
-    private static final int CHANNEL_COUNT = 510; // channel 数量与最大并发线程数匹配 (可以稍大一点), 一个 connection 最好不超过 1000 channels
-    private static final int QUEUE_COUNT = 100; // 平均每个队列会收到 200,000 / 100 = 2000 条消息
+    // Match the number of channels to the maximum number of concurrent threads (slightly larger to avoid competitiveness)
+    private static final int CHANNEL_COUNT = 255;
+    // On average, each queue receives 200,000 / 100 = 2000 messages
+    private static final int QUEUE_COUNT = 100;
     private static final String EXCHANGE_NAME = "A2_directExchange";
-    private static final String HOST = "52.43.7.237"; // change to rabbitmq's ip
+    private static final String HOST = "54.189.167.171"; // Change to rabbitmq's ip
     private static final String USER = "admin";
     private static final String PASSWORD = "123456";
     private final Connection connection;
     private final FixedSizeChannelPool channelPool;
-
-//    private final AtomicInteger messageCounter;
-
-//    private static final AtomicInteger THREAD_COUNTER = new AtomicInteger(0);
-//
-//    private static final ThreadLocal<Integer> threadLocalCounter = ThreadLocal.withInitial(() -> {
-//        // 为每个线程分配一个唯一的起始索引
-//        return THREAD_COUNTER.getAndIncrement() % QUEUE_COUNT;
-//    });
 
     public MqRepoImpl() throws Exception {
         System.out.println("init MqRepoImpl");
@@ -42,16 +34,14 @@ public class MqRepoImpl implements MqRepository {
         factory.setPassword(PASSWORD);
         this.connection = factory.newConnection();
         this.channelPool = new FixedSizeChannelPool(connection, CHANNEL_COUNT);
-//        this.messageCounter = new AtomicInteger(0);
-
         initializeExchangeAndQueues();
     }
 
     private void initializeExchangeAndQueues() throws Exception {
         try (Channel channel = connection.createChannel()) {
-            // 声明交换机
+            // 1) Declare direct exchange
             channel.exchangeDeclare(EXCHANGE_NAME, "direct", false);
-            // 声明队列并绑定到交换机
+            // 2) Declare queues and binds
             for (int i = 0; i < QUEUE_COUNT; i++) {
                 String queueName = "queue_" + i;
                 channel.queueDeclare(queueName, false, false, false, null);
@@ -65,15 +55,10 @@ public class MqRepoImpl implements MqRepository {
         Channel channel = null;
         try {
             channel = channelPool.borrowChannel();
-            // 1. 轮训的策略
-            // int queueIndex = messageCounter.getAndIncrement() % QUEUE_COUNT;
-            // 2. ThreadLocal 计数器
-            // int queueIndex = threadLocalCounter.get();
-            // threadLocalCounter.set((queueIndex + 1) % QUEUE_COUNT);
-            // 3. 随机的策略：ThreadLocalRandom 随机性和性能都比 Random 更好，不需要手动 remove
+            // Random strategy: ThreadLocalRandom‘s randomness and performance is better than Random, and o need to manually remove the ThreadLocal
             int queueIndex = ThreadLocalRandom.current().nextInt(QUEUE_COUNT);
             String routingKey = "queue_" + queueIndex;
-            // 默认是瞬时消息
+            // The default is transient messages
             channel.basicPublish(EXCHANGE_NAME, routingKey, null, message.getBytes(StandardCharsets.UTF_8));
         } finally {
             channelPool.returnChannel(channel);

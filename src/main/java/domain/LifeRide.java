@@ -50,4 +50,5 @@ public class LifeRide {
         this.time = time;
         this.liftID = liftID;
     }
+
 }
