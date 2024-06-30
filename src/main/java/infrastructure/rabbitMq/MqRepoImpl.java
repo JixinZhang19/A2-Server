@@ -19,7 +19,9 @@ public class MqRepoImpl implements MqRepository {
     private static final int CHANNEL_COUNT = 510; // channel 数量与最大并发线程数匹配 (可以稍大一点), 一个 connection 最好不超过 1000 channels
     private static final int QUEUE_COUNT = 100; // 平均每个队列会收到 200,000 / 100 = 2000 条消息
     private static final String EXCHANGE_NAME = "A2_directExchange";
-    private static final String HOST = "localhost";
+    private static final String HOST = "52.43.7.237"; // change to rabbitmq's ip
+    private static final String USER = "admin";
+    private static final String PASSWORD = "123456";
     private final Connection connection;
     private final FixedSizeChannelPool channelPool;
 
@@ -36,6 +38,8 @@ public class MqRepoImpl implements MqRepository {
         System.out.println("init MqRepoImpl");
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost(HOST);
+        factory.setUsername(USER);
+        factory.setPassword(PASSWORD);
         this.connection = factory.newConnection();
         this.channelPool = new FixedSizeChannelPool(connection, CHANNEL_COUNT);
 //        this.messageCounter = new AtomicInteger(0);
