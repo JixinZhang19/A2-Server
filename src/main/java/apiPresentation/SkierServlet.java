@@ -4,8 +4,10 @@ import apiPresentation.dto.in.SkierInDto;
 import apiPresentation.dto.out.SkierOutDto;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import domain.DbRepository;
 import domain.LifeRide;
 import domain.MqRepository;
+import infrastructure.mongoDB.DbRepositoryFactory;
 import infrastructure.rabbitMq.MqRepositoryFactory;
 
 import javax.servlet.ServletException;
@@ -31,20 +33,22 @@ public class SkierServlet extends HttpServlet {
     private static final Gson gson = new Gson();
     private static final Pattern pattern = Pattern.compile("[0-9]*");
     private MqRepository mqRepository;
-
+    private DbRepository dbRepository;
 
     /**
      * @throws ServletException ServletException is handled by the Web container
-     * Employ factory to create instance of MqRepository's implementation class -> decouple and avoid direct dependency on infrastructure
+     *                          Employ factory to create instance of MqRepository's implementation class
+     *                          -> decouple and avoid direct dependency on infrastructure
      */
     @Override
     public void init() throws ServletException {
-        System.out.println("init");
+        System.out.println("init SkierServlet");
         super.init();
         try {
             this.mqRepository = MqRepositoryFactory.createMqRepository();
+            this.dbRepository = DbRepositoryFactory.createDbRepository();
         } catch (Exception e) {
-            String errorMessage = "Error: failed to initialize resources!";
+            String errorMessage = "Error: failed to initialize SkierServlet!";
             System.err.println(errorMessage);
             throw new ServletException(errorMessage, e);
         }
@@ -52,14 +56,136 @@ public class SkierServlet extends HttpServlet {
 
     @Override
     public void destroy() {
-        System.out.println("destroy");
+        System.out.println("destroy SkierServlet");
         try {
             mqRepository.close();
+            dbRepository.close();
         } catch (Exception e) {
-            String errorMessage = "Error: failed to close resources!";
+            String errorMessage = "Error: failed to close SkierServlet!";
             System.err.println(errorMessage);
         }
         super.destroy();
+    }
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        res.setContentType("application/json");
+        res.setCharacterEncoding("UTF-8");
+        String urlPath = req.getPathInfo();
+        // 1. Check get type
+        if (urlPath == null || urlPath.isEmpty()) {
+            handleInvalidInput(res, "url");
+            return;
+        }
+        String[] urlParts = urlPath.split("/");
+        if (urlParts.length == 8) {
+            // GET/skiers/{resortID}/seasons/{seasonID}/days/{dayID}/skiers/{skierID}
+            // getTotalVerticalForSkierAtDay
+            // 2. Validate url path
+            if (!urlParts[2].equals("seasons") || !urlParts[4].equals("days") || !urlParts[6].equals("skiers")) {
+                handleInvalidInput(res, "url");
+                return;
+            }
+            if (!pattern.matcher(urlParts[1]).matches() || !pattern.matcher(urlParts[3]).matches() || !pattern.matcher(urlParts[5]).matches() || !pattern.matcher(urlParts[7]).matches()) {
+                handleInvalidInput(res, "url");
+                return;
+            }
+            int dayId = Integer.parseInt(urlParts[5]);
+            if (dayId < 1 || dayId > 366) {
+                handleInvalidInput(res, "url");
+                return;
+            }
+            int resortId = Integer.parseInt(urlParts[1]);
+            int seasonId = Integer.parseInt(urlParts[3]);
+            int skierId = Integer.parseInt(urlParts[7]);
+            // 3. Call according service
+            int getResult = 0;
+            try {
+                getResult = dbRepository.getTotalVerticalForSkierAtDay(resortId, seasonId, dayId, skierId);
+            } catch (Exception e) {
+                handleInternalError(res, "failed to get data from DB");
+                return;
+            }
+            if (getResult == 0) {
+                handleDataNotFound(res);
+                return;
+            }
+            res.setStatus(HttpServletResponse.SC_OK);
+            SkierOutDto<Integer> skierOutDto = new SkierOutDto<>("Successful Operation", getResult);
+            res.getWriter().write(gson.toJson(skierOutDto));
+        } else if (urlParts.length == 3) {
+            // GET/skiers/{skierID}/vertical
+            // getTotalVerticalForSkierAtResort
+            // 2. Validate url path and query param
+            if (!urlParts[2].equals("vertical") || !pattern.matcher(urlParts[1]).matches()) {
+                handleInvalidInput(res, "url");
+                return;
+            }
+            int skierId = Integer.parseInt(urlParts[1]);
+            // Get query param
+            // Required
+            String resort = req.getParameter("resort");
+            if (resort == null || !pattern.matcher(resort).matches()) {
+                handleInvalidInput(res, "query");
+                return;
+            }
+            int resortId = Integer.parseInt(resort);
+            // Optimal
+            String season = req.getParameter("season");
+            // 3. Call according service
+            String getResult;
+            if (season != null) {
+                if (!pattern.matcher(season).matches()) {
+                    handleInvalidInput(res, "query");
+                    return;
+                }
+                int seasonId = Integer.parseInt(season);
+                try {
+                    getResult = dbRepository.getTotalVerticalForSkierAtResort(skierId, resortId, seasonId);
+                    if (getResult == null) {
+                        handleDataNotFound(res);
+                        return;
+                    }
+                } catch (Exception e) {
+                    handleInternalError(res, "failed to get data from DB");
+                    return;
+                }
+            } else {
+                try {
+                    getResult = dbRepository.getTotalVerticalForSkierAtResort(skierId, resortId);
+                    if (getResult == null) {
+                        handleDataNotFound(res);
+                        return;
+                    }
+                } catch (Exception e) {
+                    handleInternalError(res, "failed to get data from DB");
+                    return;
+                }
+            }
+            res.setStatus(HttpServletResponse.SC_OK);
+            SkierOutDto<String> skierOutDto = new SkierOutDto<>("Successful Operation", getResult);
+            res.getWriter().write(gson.toJson(skierOutDto));
+        } else {
+            handleInvalidInput(res, "url");
+        }
+    }
+
+    private void handleInvalidInput(HttpServletResponse res, String invalidType) throws IOException {
+        res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        SkierOutDto<Object> skierOutDto = new SkierOutDto<>("Invalid inputs: " + invalidType, null);
+        res.getWriter().write(gson.toJson(skierOutDto));
+    }
+
+    private void handleDataNotFound(HttpServletResponse res) throws IOException {
+        res.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        SkierOutDto<Object> skierOutDto = new SkierOutDto<>("Data not found", null);
+        res.getWriter().write(gson.toJson(skierOutDto));
+    }
+
+    private void handleInternalError(HttpServletResponse res, String errorType) throws IOException {
+        res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        SkierOutDto<Object> skierOutDto = new SkierOutDto<>("Internal error: " + errorType, null);
+        res.getWriter().write(gson.toJson(skierOutDto));
     }
 
     @Override
@@ -69,33 +195,28 @@ public class SkierServlet extends HttpServlet {
         String urlPath = req.getPathInfo();
         // 1. Validate url path
         if (!isUrlValid(urlPath)) {
-            res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            SkierOutDto skierOutDto = new SkierOutDto("Invalid inputs: url");
-            res.getWriter().write(gson.toJson(skierOutDto));
+            handleInvalidInput(res, "url");
             return;
         }
         String requestBody = req.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
         // 2. Validate request body
         if (!isRequestBodyValid(requestBody)) {
-            res.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            SkierOutDto skierOutDto = new SkierOutDto("Invalid inputs: request body");
-            res.getWriter().write(gson.toJson(skierOutDto));
+            handleInvalidInput(res, "request body");
             return;
         }
         // 3. Send LifeRide as a message to MQ
+        LifeRide lifeRide;
         try {
-            LifeRide lifeRide = toLifeRide(urlPath, requestBody);
+            lifeRide = toLifeRide(urlPath, requestBody);
             String message = gson.toJson(lifeRide);
             mqRepository.sendMessageToMQ(message);
         } catch (Exception e) {
-            res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            SkierOutDto skierOutDto = new SkierOutDto("Internal error: failed to send message to MQ");
-            res.getWriter().write(gson.toJson(skierOutDto));
+            handleInternalError(res, "failed to send message to MQ");
             return;
         }
         // 4. Return success
         res.setStatus(HttpServletResponse.SC_CREATED);
-        SkierOutDto skierOutDto = new SkierOutDto("Write successful");
+        SkierOutDto<LifeRide> skierOutDto = new SkierOutDto<>("Write successful", lifeRide);
         res.getWriter().write(gson.toJson(skierOutDto));
     }
 

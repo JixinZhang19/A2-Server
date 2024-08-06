@@ -20,7 +20,7 @@ public class MqRepoImpl implements MqRepository {
     // On average, each queue receives 200,000 / 100 = 2000 messages
     private static final int QUEUE_COUNT = 100;
     private static final String EXCHANGE_NAME = "A2_directExchange";
-    private static final String HOST = "54.189.167.171"; // Change to rabbitmq's ip
+    private static final String HOST = "35.94.116.13"; // Change to rabbitmq's ip
     private static final String USER = "admin";
     private static final String PASSWORD = "123456";
     private final Connection connection;
